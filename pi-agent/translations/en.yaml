@@ -1,0 +1,32 @@
+configuration:
+  default_provider:
+    name: Default provider
+    description: Optional provider id Pi selects on start (a custom provider name or a built-in id like mistral). Empty lets Pi choose.
+  builtin_api_keys:
+    name: Other built-in providers
+    description: "API key for any provider Pi knows (OpenAI, Groq, OpenRouter...). env_var is e.g. MISTRAL_API_KEY or OPENAI_API_KEY."
+  custom_providers:
+    name: Custom OpenAI-compatible providers
+    description: "Any token-based endpoint: name (lowercase), base_url (ending in /v1), api_key, and optionally model IDs. If models is empty they are fetched from <base_url>/models."
+  default_model:
+    name: Default model
+    description: Optional model ID, e.g. one listed by `pi --list-models`. Empty lets Pi choose.
+  web_search_provider:
+    name: Web search provider
+    description: Backend for the agent's web_search/web_fetch tools. Add its key under Other built-in providers (e.g. BRAVE_SEARCH_API_KEY, TAVILY_API_KEY). Empty uses Brave. Fetching a URL always asks first.
+  restrict_sensitive_files:
+    name: Protect sensitive files
+    description: Stops the agent's file tools from reading secrets.yaml, .storage, .cloud, .git, ssl, backups and key files, and from writing them. A speed bump, not a sandbox: shell commands, directory-wide grep/find and symlinks can get around it. Writes and shell commands always ask first.
+  enable_mcp:
+    name: Home Assistant MCP
+    description: Give the agent entity/service access through hass-mcp.
+  session_persistence:
+    name: Persistent session (tmux)
+    description: Keep the terminal session alive when you close the panel.
+  terminal_font_size:
+    name: Terminal font size
+  terminal_theme:
+    name: Terminal theme
+  working_directory:
+    name: Working directory
+    description: Where Pi starts. Must be /homeassistant, /config, /share or /media (or a folder inside).

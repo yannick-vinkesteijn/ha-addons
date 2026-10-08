@@ -1,0 +1,60 @@
+name: Pi Agent
+description: Pi coding agent in Home Assistant, using any token-based model (Mistral, AKI.IO, OpenAI-compatible, ...)
+version: "0.1.0"
+slug: pi_agent
+url: https://github.com/yannick-vinkesteijn/ha-addons
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: true
+ingress: true
+ingress_port: 7681
+ingress_stream: true
+panel_icon: mdi:pi
+panel_title: Pi Agent
+homeassistant_api: true
+hassio_api: true
+map:
+  - homeassistant_config:rw
+  - addon_config:rw
+  - all_addon_configs:rw
+  - share:rw
+  - media:rw
+  - ssl:ro
+  - backup:ro
+options:
+  default_provider: ""
+  default_model: ""
+  builtin_api_keys: []
+  custom_providers: []
+  restrict_sensitive_files: true
+  enable_mcp: true
+  session_persistence: true
+  terminal_font_size: 14
+  terminal_theme: dark
+  working_directory: /homeassistant
+schema:
+  default_provider: str?
+  default_model: str?
+  builtin_api_keys:
+    - env_var: match(^[A-Z][A-Z0-9_]*_(API_KEY|TOKEN)$)
+      api_key: password
+  custom_providers:
+    - name: match(^[a-z][a-z0-9-]*$)
+      base_url: url
+      api_key: password
+      models:
+        - str?
+  restrict_sensitive_files: bool
+  web_search_provider: list(brave|tavily|serper|exa|youcom|jina|firecrawl|perplexity|searxng|ollama)?
+  enable_mcp: bool
+  session_persistence: bool
+  terminal_font_size: int(10,24)
+  terminal_theme: list(dark|light)
+  working_directory: match(^/(homeassistant|config|share|media)(/[^./][^/]*)*/?$)
+backup_exclude:
+  - "pi-agent/npm/*"
+environment:
+  TERM: xterm-256color
