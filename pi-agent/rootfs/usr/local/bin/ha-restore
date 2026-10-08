@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Restore files saved by ha-safe-write. These are per-file copies, NOT Home Assistant backups.
+# A backup folder holds the files as they were BEFORE that run changed them.
+#
+#   ha-restore list                    newest first, with the files in each
+#   ha-restore apply <timestamp> [file]   restore all files of that run, or one (path relative to its ha/ or addon_configs/ dir)
+#   ha-restore prune [days]            delete backups older than N days (default 30)
+set -uo pipefail
+BACKUP_DIR="${HA_BACKUP_DIR:-/data/backups}"
+CONFIG_DIR="${HA_CONFIG_DIR:-/homeassistant}"
+ADDON_DIR="${HA_ADDON_CONFIGS_DIR:-/addon_configs}"
+
+usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# -ge 1 ] || usage
+
+case "$1" in
+  list)
+    [ -d "$BACKUP_DIR" ] || { echo "no backups yet"; exit 0; }
+    for d in $(ls -1 "$BACKUP_DIR" | sort -r | head -50); do
+      echo "$d"
+      (cd "$BACKUP_DIR/$d" && find . -type f | sed 's#^\./#   #' | sort)
+    done ;;
+  apply)
+    TS="${2:-}"; ONLY="${3:-}"
+    [[ "$TS" =~ ^[0-9]{8}-[0-9]{6}(-[0-9]+)?$ ]] && [ -d "$BACKUP_DIR/$TS" ] || { echo "unknown backup '$TS' (see: ha-restore list)" >&2; exit 2; }
+    RC=0; N=0
+    while IFS= read -r f; do
+      case "$f" in
+        ha/*) REL=${f#ha/}; TARGET="$CONFIG_DIR/$REL" ;;
+        addon_configs/*) REL=${f#addon_configs/}; TARGET="$ADDON_DIR/$REL" ;;
+        *) continue ;;
+      esac
+      [ -z "$ONLY" ] || [ "$ONLY" = "$REL" ] || continue
+      echo "restoring $TARGET from $TS"
+      ha-safe-write --allow-shrink "$TARGET" < "$BACKUP_DIR/$TS/$f" || RC=1
+      N=$((N + 1))
+    done < <(cd "$BACKUP_DIR/$TS" && find . -type f | sed 's#^\./##' | sort)
+    [ "$N" -gt 0 ] || { echo "nothing matched${ONLY:+ '$ONLY'} in $TS" >&2; exit 2; }
+    exit $RC ;;
+  prune)
+    DAYS="${2:-30}"; [[ "$DAYS" =~ ^[0-9]+$ ]] || usage
+    [ -d "$BACKUP_DIR" ] || exit 0
+    find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+$DAYS" -print -exec rm -rf {} + ;;
+  *) usage ;;
+esac

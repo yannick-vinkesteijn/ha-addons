@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Write a config file safely: back up, write atomically, and (for Home Assistant config)
+# validate with HA Core's own config check, rolling back if it fails. Does NOT reload anything.
+# Files under /addon_configs (other add-ons) get a backup and a YAML syntax check only,
+# because HA Core cannot validate them.
+#
+# Usage: ha-safe-write [--allow-shrink] [--skip-check] <file> < new-content
+# Exit:  0 saved+validated, 1 validation failed (rolled back), 2 refused/usage, 3 check unavailable (rolled back)
+set -uo pipefail
+
+CONFIG_DIR="${HA_CONFIG_DIR:-/homeassistant}"
+ADDON_DIR="${HA_ADDON_CONFIGS_DIR:-/addon_configs}"
+BACKUP_DIR="${HA_BACKUP_DIR:-/data/backups}"
+API="${HA_API_URL:-http://supervisor/core/api}"
+TOKEN="${HA_TOKEN:-${SUPERVISOR_TOKEN:-}}"
+
+ALLOW_SHRINK=0; SKIP_CHECK=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --allow-shrink) ALLOW_SHRINK=1; shift ;;
+    --skip-check)   SKIP_CHECK=1; shift ;;
+    --) shift; break ;;
+    -*) echo "unknown option: $1" >&2; exit 2 ;;
+    *) break ;;
+  esac
+done
+[ $# -eq 1 ] || { echo "usage: ha-safe-write [--allow-shrink] [--skip-check] <file> < new-content" >&2; exit 2; }
+
+CONFIG_DIR=$(realpath -m "$CONFIG_DIR")
+ADDON_DIR=$(realpath -m "$ADDON_DIR")
+TARGET=$(realpath -m "$1")
+case "$TARGET" in
+  "$CONFIG_DIR"/*) MODE=ha;    REL=${TARGET#"$CONFIG_DIR"/};  BK_PREFIX=ha ;;
+  "$ADDON_DIR"/*)  MODE=addon; REL=${TARGET#"$ADDON_DIR"/};   BK_PREFIX=addon_configs ;;
+  *) echo "refused: $TARGET is outside $CONFIG_DIR and $ADDON_DIR" >&2; exit 2 ;;
+esac
+case "$REL" in
+  secrets.yaml|.storage|.storage/*|.cloud|.cloud/*|.git|.git/*|*.key|*.pem|*/secrets.yaml|*/.storage/*|*/.git/*|.env|*.env|*credentials*|*secrets.json)
+    echo "refused: $REL is protected (edit it by hand)" >&2; exit 2 ;;
+esac
+
+DIR=$(dirname "$TARGET")
+# Validate from a scratch copy first, so a refused write leaves nothing behind (not even directories).
+TMP=$(mktemp) || exit 2
+STAGE=""
+trap 'rm -f "$TMP" "$STAGE"' EXIT
+cat > "$TMP"
+
+if ! grep -q '[^[:space:]]' "$TMP"; then echo "refused: new content is empty (or only whitespace)" >&2; exit 2; fi
+
+case "$REL" in
+  *.yaml|*.yml)
+    python3 - "$TMP" <<'PY' || { echo "refused: not valid YAML (see error above); nothing written" >&2; exit 2; }
+import sys, yaml
+class L(yaml.SafeLoader): pass
+# HA-specific tags (!include, !secret, !env_var, ...) are accepted without being resolved.
+L.add_multi_constructor("!", lambda loader, suffix, node: None)
+try:
+    list(yaml.load_all(open(sys.argv[1]), Loader=L))
+except yaml.YAMLError as e:
+    print(e, file=sys.stderr); sys.exit(1)
+PY
+    ;;
+esac
+
+if [ -f "$TARGET" ] && [ "$ALLOW_SHRINK" = 0 ]; then
+  OLD=$(wc -l < "$TARGET"); NEW=$(wc -l < "$TMP")
+  if [ "$OLD" -gt 10 ] && [ $((NEW * 2)) -lt "$OLD" ]; then
+    echo "refused: file would shrink from $OLD to $NEW lines. Re-run with --allow-shrink if intended." >&2; exit 2
+  fi
+fi
+
+# The PID suffix keeps two writes in the same second from sharing (and overwriting) a backup folder.
+STAMP="$(date +%Y%m%d-%H%M%S)-$$"
+BACKUP=""
+mkdir -p "$DIR" || { echo "refused: cannot create $DIR" >&2; exit 2; }
+STAGE=$(mktemp "$DIR/.ha-safe-write.XXXXXX") || exit 2
+cp "$TMP" "$STAGE"
+if [ -f "$TARGET" ]; then
+  BACKUP="$BACKUP_DIR/$STAMP/$BK_PREFIX/$REL"
+  mkdir -p "$(dirname "$BACKUP")" && cp -p "$TARGET" "$BACKUP" || { echo "refused: could not back up $TARGET" >&2; exit 2; }
+  chmod --reference="$TARGET" "$STAGE" 2>/dev/null || true
+else
+  chmod 644 "$STAGE"
+fi
+mv "$STAGE" "$TARGET"; STAGE=""
+
+rollback() {
+  if [ -n "$BACKUP" ]; then cp -p "$BACKUP" "$TARGET"; echo "rolled back to previous version ($BACKUP)" >&2
+  else rm -f "$TARGET"; echo "rolled back: removed the new file" >&2; fi
+}
+
+if [ "$MODE" = addon ]; then
+  case "$REL" in *.yaml|*.yml) CHK="YAML syntax checked" ;; *) CHK="not validated" ;; esac
+  echo "saved $REL (add-on config: $CHK; HA Core cannot validate it). Backup: ${BACKUP:-none}. Restart that add-on to apply."; exit 0
+fi
+if [ "$SKIP_CHECK" = 1 ]; then
+  echo "saved $REL (validation skipped). Backup: ${BACKUP:-none}. NOT reloaded."; exit 0
+fi
+
+RESP_FILE=$(mktemp)
+CODE=$(curl -sS --max-time 60 -o "$RESP_FILE" -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" "$API/config/core/check_config" 2>&1) || { echo "config check unavailable: $CODE" >&2; rm -f "$RESP_FILE"; rollback; exit 3; }
+RESP=$(cat "$RESP_FILE"); rm -f "$RESP_FILE"
+if [ "$CODE" != 200 ]; then echo "config check unavailable (HTTP $CODE): $(printf '%s' "$RESP" | head -c 200)" >&2; rollback; exit 3; fi
+RESULT=$(printf '%s' "$RESP" | jq -r '.result // empty' 2>/dev/null)
+if [ "$RESULT" != "valid" ]; then
+  echo "HA config check FAILED:" >&2
+  ERRS=$(printf '%s' "$RESP" | jq -r '.errors // .' 2>/dev/null) || ERRS="$RESP"
+  printf '%s\n' "$ERRS" >&2
+  rollback; exit 1
+fi
+case "$REL" in
+  *.yaml|*.yml) NOTE="HA Core config check passed" ;;
+  *) NOTE="HA Core config check passed, but it only covers HA's YAML config, not necessarily this file" ;;
+esac
+echo "saved $REL; $NOTE. Backup: ${BACKUP:-none}. NOT reloaded - run ha-reload."

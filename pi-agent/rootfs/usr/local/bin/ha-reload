@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Reload one Home Assistant domain after a config change. Usage: ha-reload <domain|core>
+#   ha-reload automation   ha-reload script   ha-reload template   ha-reload core
+set -uo pipefail
+API="${HA_API_URL:-http://supervisor/core/api}"
+TOKEN="${HA_TOKEN:-${SUPERVISOR_TOKEN:-}}"
+D="${1:-}"
+[[ "$D" =~ ^[a-z_]+$ ]] || { echo "usage: ha-reload <domain|core>   e.g. automation, script, scene, template" >&2; exit 2; }
+if [ "$D" = core ]; then SVC="homeassistant/reload_core_config"; else SVC="$D/reload"; fi
+CODE=$(curl -sS -o /tmp/ha-reload.out -w '%{http_code}' --max-time 60 -X POST \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' "$API/services/$SVC")
+if [ "$CODE" = 200 ]; then echo "reloaded $D. Now verify it loaded (check entities / ha core logs)."; else
+  echo "reload of $D failed (HTTP $CODE): $(cat /tmp/ha-reload.out)" >&2; exit 1; fi
