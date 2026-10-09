@@ -4,10 +4,10 @@ name: Build add-ons
 # Adapted from home-assistant/apps-example, without tj-actions/changed-files or @master helpers.
 on:
   pull_request:
-    paths: ["pi-agent/**", "pyproject.toml", ".github/workflows/build.yaml"]
+    paths: ["pi-agent/**", "pyproject.toml", "uv.lock", ".github/workflows/build.yaml"]
   push:
     branches: [main]
-    paths: ["pi-agent/**", "pyproject.toml", ".github/workflows/build.yaml"]
+    paths: ["pi-agent/**", "pyproject.toml", "uv.lock", ".github/workflows/build.yaml"]
   workflow_dispatch:
 
 permissions:

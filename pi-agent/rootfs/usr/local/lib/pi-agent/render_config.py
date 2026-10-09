@@ -163,11 +163,20 @@ def merge_override(data: dict[str, Json], path: str | Path, what: str) -> dict[s
     return merged
 
 
+def _under_symlinked_dir(dst: Path, target: Path) -> bool:
+    """True if a directory between `dst` (exclusive) and `target` is a symlink in the destination tree.
+    Copying through it would write outside `dst`, so such entries are skipped."""
+    ancestors = [q for q in target.relative_to(dst).parents if q != Path(".")]
+    return any((dst / q).is_symlink() for q in ancestors)
+
+
 def copy_no_clobber(src: str | Path, dst: str | Path) -> None:
     """Like `cp -an`: copy what is missing, never overwrite."""
     src, dst = Path(src), Path(dst)
     for p in sorted(src.rglob("*")):
         target = dst / p.relative_to(src)
+        if (target.is_symlink() and p.is_dir() and not p.is_symlink()) or _under_symlinked_dir(dst, target):
+            continue
         if p.is_dir() and not p.is_symlink():
             target.mkdir(parents=True, exist_ok=True)
         elif not target.exists() and not target.is_symlink():
@@ -184,6 +193,8 @@ def copy_overwrite(src: str | Path, dst: str | Path) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     for p in sorted(src.rglob("*")):
         target = dst / p.relative_to(src)
+        if (target.is_symlink() and p.is_dir() and not p.is_symlink()) or _under_symlinked_dir(dst, target):
+            continue
         if p.is_dir() and not p.is_symlink():
             target.mkdir(parents=True, exist_ok=True)
             continue
@@ -432,7 +443,7 @@ def build_motd(
     """Text for the terminal banner. Returns (text, whether anything needs the user's attention)."""
     lines: list[str] = ["", "  Pi Agent for Home Assistant", ""]
     problems = False
-    builtin: list[BuiltinKey] = opts.get("builtin_api_keys") or []
+    builtin = usable_builtin_keys(opts)
     custom: list[CustomProvider] = opts.get("custom_providers") or []
     if not builtin and not custom:
         problems = True
@@ -478,6 +489,11 @@ def build_motd(
 # --- main --------------------------------------------------------------------------------------
 
 
+def usable_builtin_keys(opts: dict[str, Json]) -> list[BuiltinKey]:
+    """`builtin_api_keys` entries that have both a name and a key (the options form allows empty ones)."""
+    return [e for e in opts.get("builtin_api_keys") or [] if e.get("env_var") and e.get("api_key")]
+
+
 def opt(opts: dict[str, Json], key: str, default: Json = "") -> Json:
     """Option value, treating a missing key and an explicit null the same (HA may send either)."""
     value = opts.get(key)
@@ -502,11 +518,9 @@ def main() -> None:
     seed_agent_dir(agent_dir)
 
     # Keys for Pi's built-in providers, e.g. MISTRAL_API_KEY (see Pi's providers.md).
-    builtin: list[BuiltinKey] = opts.get("builtin_api_keys") or []
+    builtin = usable_builtin_keys(opts)
     for entry in builtin:
-        name, key = entry.get("env_var", ""), entry.get("api_key", "")
-        if not name or not key:
-            continue
+        name, key = entry["env_var"], entry["api_key"]
         # The name ends up in a shell `export` line, so it must be a plain identifier.
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise Fatal(f"invalid environment variable name: {name!r}")
@@ -517,9 +531,9 @@ def main() -> None:
     models = merge_override(build_models(opts), CONFIG_DIR / "models.override.json", "models.json")
     write_json(agent_dir / "models.json", models)
 
-    if provider and provider not in models["providers"] and not opts.get("builtin_api_keys"):
+    if provider and provider not in models["providers"] and not builtin:
         warn(f"default_provider '{provider}' is neither a custom provider nor backed by a builtin_api_keys entry")
-    if not opts.get("custom_providers") and not opts.get("builtin_api_keys"):
+    if not opts.get("custom_providers") and not builtin:
         err("No provider configured. Add an entry under builtin_api_keys or custom_providers and restart.")
 
     # settings.json: only our defaults are touched; everything else Pi wrote stays.

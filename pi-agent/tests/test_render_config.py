@@ -123,6 +123,19 @@ def test_copy_overwrite_replaces_files_and_symlinks(tmp_path):
     assert os.readlink(tmp_path / "dst/bin/tool") == "real.js"
 
 
+def test_copies_never_follow_destination_directory_symlinks(tmp_path):
+    """A symlinked directory in the destination must not let seed files land outside it."""
+    write(tmp_path / "src/skills/a.txt", "seed")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    for copy in (rc.copy_no_clobber, rc.copy_overwrite):
+        dst = tmp_path / f"dst-{copy.__name__}"
+        dst.mkdir()
+        os.symlink(outside, dst / "skills")
+        copy(tmp_path / "src", dst)
+        assert list(outside.iterdir()) == []
+
+
 # --- seeding -----------------------------------------------------------------------------------
 
 
@@ -319,6 +332,18 @@ def test_motd_all_good_and_web_key_hint():
     assert not problems and "key for MISTRAL_API_KEY" in text and "BRAVE_SEARCH_API_KEY" in text
     text, _ = rc.build_motd(opts, {"providers": {}}, "", "", False, lambda v: True, "brave")
     assert "[ok] web search" in text and "Home Assistant tools are off" in text
+
+
+def test_motd_ignores_incomplete_builtin_entries():
+    opts = {"builtin_api_keys": [{"env_var": "A_API_KEY", "api_key": ""}, {"env_var": "", "api_key": "k"}]}
+    text, problems = rc.build_motd(opts, {"providers": {}}, "", "", True, lambda v: False, "brave")
+    assert problems and "[ok] key for" not in text and "No model provider is set up yet" in text
+
+
+def test_main_incomplete_builtin_entry_reports_no_provider(env, capsys):
+    _, err = run_main(env, {"builtin_api_keys": [{"env_var": "A_API_KEY", "api_key": ""}]}, capsys)
+    assert "No provider configured" in err
+    assert "[ok] key for" not in (env / "root/.pi-agent-motd").read_text()
 
 
 def test_motd_flags_provider_without_models():
