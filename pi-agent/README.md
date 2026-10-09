@@ -23,7 +23,7 @@ If `models` is left empty, the model list is fetched from `<base_url>/models`.
 ```yaml
 custom_providers:
   - name: aki
-    base_url: https://aki.io/v1
+    base_url: https://aki.io/openai/v1
     api_key: "..."
     models: []
 ```
@@ -70,6 +70,10 @@ Limits you should know about. This is a speed bump, not a sandbox:
 - The policy does not resolve symlinks: a link to a protected file can be read.
 - `/addon_configs` (other add-ons' configs) is mounted read-write. Reads and writes both ask first, and anything the agent reads is sent to your model provider.
 - Back up before letting it loose on `configuration.yaml`.
+
+## Copying text from the terminal
+
+tmux mouse mode (wheel scrolling) keeps a drag-selection inside tmux, so it cannot reach your clipboard (ttyd has no clipboard bridge). Either hold **Shift** (Option on macOS) while dragging to let the browser select, or press **Ctrl+b m** to switch mouse mode off and on.
 
 ## Local testing
 ```bash

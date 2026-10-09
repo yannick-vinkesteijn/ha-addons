@@ -2,6 +2,8 @@
 
 ## 0.1.2
 - Home Assistant now pulls the prebuilt multi-arch image from ghcr.io instead of building it on your device (much faster install and update).
+- tmux: `Ctrl+b m` toggles mouse mode so you can select and copy text in the browser; documented in the README.
+- README: the AKI.IO example uses the correct base URL (`https://aki.io/openai/v1`).
 
 ## 0.1.1
 - Reading other add-ons' configs (`/addon_configs`) now asks first, like writing does; they often contain credentials.
