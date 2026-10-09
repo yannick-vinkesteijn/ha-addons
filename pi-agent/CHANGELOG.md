@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.2
+- Home Assistant now pulls the prebuilt multi-arch image from ghcr.io instead of building it on your device (much faster install and update).
+
 ## 0.1.1
 - Reading other add-ons' configs (`/addon_configs`) now asks first, like writing does; they often contain credentials.
 - Python tests (pytest), ruff and ty config (`pyproject.toml`), pre-commit hooks, and a CI job that runs them.
