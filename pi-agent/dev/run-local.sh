@@ -43,7 +43,7 @@ if [ ! -f "$DIR/data/options.json" ]; then
     {"env_var": "MISTRAL_API_KEY", "api_key": "REPLACE_ME"}
   ],
   "custom_providers": [
-    {"name": "aki", "base_url": "https://aki.io/v1", "api_key": "REPLACE_ME", "models": []}
+    {"name": "aki", "base_url": "https://aki.io/openai/v1", "api_key": "REPLACE_ME", "models": []}
   ]
 }
 JSON
