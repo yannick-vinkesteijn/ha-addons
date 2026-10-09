@@ -4,6 +4,16 @@ Runs the [Pi](https://pi.dev) coding agent in a Home Assistant sidebar terminal,
 Home Assistant access through hass-mcp. Providers are configured the way Pi does it: built-in providers by API key,
 everything else as a custom OpenAI-compatible provider.
 
+## What this adds on top of Pi
+- A browser terminal in the HA sidebar (ttyd + tmux, ingress only), so sessions survive closing the tab.
+- Provider setup in the add-on options: built-in API keys and custom OpenAI-compatible endpoints. Keys are never written to `models.json`.
+- Home Assistant tools through hass-mcp, wired up with the Supervisor token.
+- A permission policy that asks before writing or running commands, with secrets protected.
+- `ha-safe-write`, `ha-reload` and `ha-restore`: backed-up, validated config edits with rollback.
+- Web search, where fetching a URL always asks first.
+- A setup message when the terminal opens: what is configured and what is missing.
+- Starter `AGENTS.md` and a Home Assistant skill, seeded once and never overwritten.
+
 ## Setup
 1. Install the add-on, open **Configuration**, add a provider (see below).
 2. Start it, open **Pi Agent** in the sidebar, type `pi`.
@@ -52,6 +62,10 @@ builtin_api_keys:
 - SearXNG/Ollama need a base URL (`SEARXNG_URL`, `OLLAMA_HOST`); not exposed as an option yet.
 
 ## Safety model
+An agent with access can destroy things: delete files, break your config, or leak data to a model provider. So the
+approach here is **ask first**: nothing is written or run without your confirmation, and the safety features below
+reduce the damage, they do not make it impossible. Keep real Home Assistant backups.
+
 Pi itself has no approval prompts, so this add-on adds the `pi-permission-system` extension with a generated policy
 (`/data/pi-agent/pi-permissions.jsonc`, rewritten on every start):
 
@@ -86,6 +100,6 @@ Without real Home Assistant, hass-mcp is unavailable and `--mock-ha` only fakes 
 ## Credits
 Inspired by [Robson Felix's Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode) (MIT),
 which I use myself; this is the same idea for Pi and open models. A few pieces are adapted from it (see `LICENSE`).
-The safe-write / backup / protected-files design is inspired by
-[magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense); ideas only, no code.
+I also looked at [magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense), and its
+validate-and-back-up approach to config writes shaped this one. Ideas only, no code was copied.
 Uses [pi-permission-system](https://github.com/MasuRii/pi-permission-system) (MIT) for the permission policy.
