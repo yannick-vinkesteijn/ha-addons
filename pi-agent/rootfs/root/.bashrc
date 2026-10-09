@@ -1,6 +1,7 @@
 export PATH="/root/.local/bin:$PATH"
 alias ll='ls -la'
+# Setup status written by run.sh at every start (what is configured, and what is missing).
 if [ -z "${PI_BANNER_SHOWN:-}" ] && [ -t 1 ]; then
   export PI_BANNER_SHOWN=1
-  echo "Pi Agent for Home Assistant - type 'pi' to start. Config: \$PI_CODING_AGENT_DIR=$PI_CODING_AGENT_DIR"
+  [ -f /root/.pi-agent-motd ] && cat /root/.pi-agent-motd
 fi

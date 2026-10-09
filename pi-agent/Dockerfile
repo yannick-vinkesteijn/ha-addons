@@ -8,7 +8,7 @@ ENV LANG=C.UTF-8 \
 RUN apk add --no-cache \
     bash curl git jq nodejs npm python3 py3-yaml uv nginx openssh-client libstdc++ ncurses \
     vim nano tmux coreutils findutils grep sed gawk ca-certificates \
-    openssl ripgrep \
+    openssl ripgrep fd \
     && update-ca-certificates
 
 # ttyd static binary (same approach as the upstream Claude Code add-on)
@@ -49,6 +49,7 @@ COPY rootfs/root/.bashrc /root/.bashrc
 RUN echo 'source ~/.bashrc' > /root/.profile
 COPY rootfs/defaults /opt/defaults
 COPY rootfs/etc/nginx/pi-agent.conf /etc/nginx/pi-agent.conf
+COPY rootfs/usr/local/lib/pi-agent/ /usr/local/lib/pi-agent/
 COPY run.sh /usr/local/bin/run.sh
 COPY rootfs/usr/local/bin/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/run.sh /usr/local/bin/ha-safe-write /usr/local/bin/ha-reload /usr/local/bin/ha-restore

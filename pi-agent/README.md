@@ -68,7 +68,7 @@ Limits you should know about. This is a speed bump, not a sandbox:
 - Bash rules match the whole command string, so a deny on `secrets.yaml` is easy to get around with a shell trick.
 - `grep` and `find` on a **directory** are not blocked by path rules, so they can still read protected files inside it.
 - The policy does not resolve symlinks: a link to a protected file can be read.
-- `/addon_configs` (other add-ons' configs) is mounted read-write. Reads are free, writes ask, and anything the agent reads is sent to your model provider.
+- `/addon_configs` (other add-ons' configs) is mounted read-write. Reads and writes both ask first, and anything the agent reads is sent to your model provider.
 - Back up before letting it loose on `configuration.yaml`.
 
 ## Local testing

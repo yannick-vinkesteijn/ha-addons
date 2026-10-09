@@ -16,7 +16,7 @@ When users mention `/config/...` for Home Assistant, translate to `/homeassistan
 | `/config` | This add-on's config (`models.override.json`) | read-write |
 | `/share` | Shared folder | read-write |
 | `/media` | Media files | read-write |
-| `/addon_configs` | Other add-ons' configs | reads free, writes ask |
+| `/addon_configs` | Other add-ons' configs | reads and writes ask |
 | `/ssl` | SSL certificates | read-only, asks first |
 | `/backup` | Backups | read-only, asks first |
 
