@@ -8,16 +8,14 @@
 
 ## Credits
 
-Huge thanks to **[Robson Felix](https://github.com/robsonfelix)**. The structure of
-these add-ons (ingress web terminal via ttyd, tmux persistence, hass-mcp wiring, the
-Home Assistant path/log guidance for the agent) is adapted from his
-[Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode),
-which is MIT licensed. The agent work is his. If you use Claude, go use his add-on.
+Inspired by [Robson Felix's Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode)
+(MIT), which I use myself. I built this because I use [Pi](https://pi.dev) as my daily driver for open
+models, and wanted the same thing for it. A few pieces are adapted from his add-on (the ttyd/tmux ingress
+setup and the Home Assistant path guidance for the agent); see `LICENSE`.
 
-The safety design (validate-before-commit config writes, rollback, per-file backups, protected
-secrets, asking before writes) is inspired by
-**[magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode)** for Home Assistant
-(Unlicense). We took the ideas, not the code. If you want a fuller-featured agent add-on, use his.
+The safety design (validated config writes, rollback, backups, protected secrets, asking before writes)
+is inspired by [magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense);
+ideas only, no code.
 
 Built on [Pi](https://pi.dev), [pi-mcp-adapter](https://pi.dev/packages/pi-mcp-adapter),
 [pi-permission-system](https://github.com/MasuRii/pi-permission-system) (MIT), [hass-mcp](https://pypi.org/project/hass-mcp/)

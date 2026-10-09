@@ -84,8 +84,8 @@ State is kept in `~/pi-test` (override with `PI_TEST_DIR`); put your API keys in
 Without real Home Assistant, hass-mcp is unavailable and `--mock-ha` only fakes the config check and reload calls.
 
 ## Credits
-Based on, and with thanks to, **[Robson Felix](https://github.com/robsonfelix)** and his
-[Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode) (MIT).
+Inspired by [Robson Felix's Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode) (MIT),
+which I use myself; this is the same idea for Pi and open models. A few pieces are adapted from it (see `LICENSE`).
 The safe-write / backup / protected-files design is inspired by
-**[magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode)** (Unlicense); ideas only, no code copied.
+[magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense); ideas only, no code.
 Uses [pi-permission-system](https://github.com/MasuRii/pi-permission-system) (MIT) for the permission policy.
