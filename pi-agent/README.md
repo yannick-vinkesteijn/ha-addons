@@ -46,7 +46,7 @@ Set `web_search_provider` (e.g. `brave`) and add its key as a `builtin_api_keys`
 Searching is allowed; **fetching a URL always asks**, so read the full URL before approving.
 
 ## Tips
-- Copying text: hold **Shift** (Option on macOS) while dragging, or press **Ctrl+b m** to toggle tmux mouse mode.
+- Copying text: Pi captures the mouse, so hold **Shift** (**Option** on macOS) while you drag to select, then copy with Ctrl/Cmd+C.
 - Try it locally: `./dev/run-local.sh --mock-ha` (Docker; state in `~/pi-test`).
 
 ## Credits
