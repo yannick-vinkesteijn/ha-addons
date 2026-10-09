@@ -1,105 +1,56 @@
 # Pi Agent for Home Assistant
 
-Runs the [Pi](https://pi.dev) coding agent in a Home Assistant sidebar terminal, with any token-based model and
-Home Assistant access through hass-mcp. Providers are configured the way Pi does it: built-in providers by API key,
-everything else as a custom OpenAI-compatible provider.
+The [Pi](https://pi.dev) coding agent in a Home Assistant sidebar terminal. Use any token-based model (Mistral, AKI.IO,
+any OpenAI-compatible endpoint) to read, explain and fix your HA config. Home Assistant tools via hass-mcp.
 
-## What this adds on top of Pi
-- A browser terminal in the HA sidebar (ttyd + tmux, ingress only), so sessions survive closing the tab.
-- Provider setup in the add-on options: built-in API keys and custom OpenAI-compatible endpoints. Keys are never written to `models.json`.
-- Home Assistant tools through hass-mcp, wired up with the Supervisor token.
-- A permission policy that asks before writing or running commands, with secrets protected.
-- `ha-safe-write`, `ha-reload` and `ha-restore`: backed-up, validated config edits with rollback.
-- Web search, where fetching a URL always asks first.
-- A setup message when the terminal opens: what is configured and what is missing.
-- Starter `AGENTS.md` and a Home Assistant skill, seeded once and never overwritten.
-
-## Setup
-1. Install the add-on, open **Configuration**, add a provider (see below).
-2. Start it, open **Pi Agent** in the sidebar, type `pi`.
+## Quick start
+1. Add this repository to the add-on store: `https://github.com/yannick-vinkesteijn/ha-addons`, then install **Pi Agent**.
+2. In **Configuration**, add a provider (below), then start the add-on.
+3. Open **Pi Agent** in the sidebar and type `pi`. The terminal shows what is configured and what is missing.
 
 ## Providers
-Add them in **Configuration**. Nothing is special-cased.
-
-**Built-in Pi providers** (Mistral, OpenAI, Groq, OpenRouter, ...): add an entry under *Other built-in providers*.
 ```yaml
+# A provider Pi already knows (Mistral, OpenAI, Groq, OpenRouter, ...): its API key variable
 builtin_api_keys:
   - env_var: MISTRAL_API_KEY
     api_key: "..."
-```
 
-**Anything OpenAI-compatible** (AKI.IO, Scaleway, a self-hosted vLLM, ...): add an entry under *Custom providers*.
-If `models` is left empty, the model list is fetched from `<base_url>/models`.
-```yaml
+# Anything OpenAI-compatible. Leave models empty to fetch the list from <base_url>/models.
 custom_providers:
   - name: aki
     base_url: https://aki.io/openai/v1
     api_key: "..."
     models: []
+
+default_provider: aki      # optional
+default_model: ""          # optional
 ```
+`models.json` and the default provider/model are regenerated on every start; keys are never written into it.
+`AGENTS.md`, skills and installed packages are seeded once and are yours to edit (`/data/pi-agent`).
+Extra provider settings can go in `/config/models.override.json` (merged over the generated file).
 
-## How configuration works
-| What | Behaviour |
-|---|---|
-| `models.json`, default provider/model, MCP config | Regenerated from the add-on options on **every start** |
-| `AGENTS.md`, `skills/`, installed Pi packages | Seeded **once**, then yours to edit (`/data/pi-agent`, not overwritten) |
-| `/config/models.override.json` (add-on config dir) | Optional; merged over the generated `models.json` (e.g. add a third provider) |
+## Safety: it asks first
+An agent with access can destroy things: delete files, break your config, or send data to your model provider. So:
+- **Reads** inside the mapped folders are free. **Writes, edits and shell commands ask first.**
+- **Protected:** `secrets.yaml`, `.storage/`, `.cloud/`, `.git/`, `ssl/`, `/backup`, key files and the add-on options can't be read or written
+  (`restrict_sensitive_files`, on by default). The policy and extension files are never writable.
+- **Config edits** go through `ha-safe-write` (backup, HA config check, rollback), then `ha-reload`. Undo with `ha-restore`.
+  These are per-file copies in `/data/backups`, **not HA backups**; make a real one before big changes.
+- Reading other add-ons' configs (`/addon_configs`) asks first. No `full_access`, Docker or manager role; ingress only.
 
-API keys are not written into `models.json`: built-in keys come from the environment, custom provider keys are resolved by Pi from the options file at use time.
+It's a speed bump, not a sandbox: bash rules match the command text so tricks get around them, `grep`/`find` on a directory
+can still read protected files inside it, and symlinks aren't resolved.
 
 ## Web search
-The agent has `web_search` and `web_fetch` (the [rpiv-web-tools](https://pi.dev/packages/@juicesharp/rpiv-web-tools) package).
-Pick a provider with *Web search provider* and add its key under *Other built-in providers*, for example:
-```yaml
-web_search_provider: brave
-builtin_api_keys:
-  - env_var: BRAVE_SEARCH_API_KEY
-    api_key: "..."
-```
-- **Searching is allowed; fetching a URL always asks.** A URL can carry data out, and fetching can reach internal hosts, so you approve each one. Read the full URL in the prompt before approving.
-- The package refuses literal private IPs (`192.168.x.x`, `127.0.0.1`) but **not** hostnames that resolve to private addresses or redirects to them. Treat the prompt as the real protection.
-- For Home Assistant's own state and logs use the `homeassistant` MCP tools (authenticated). For a LAN device the agent can use `curl` through bash, which also asks.
-- SearXNG/Ollama need a base URL (`SEARXNG_URL`, `OLLAMA_HOST`); not exposed as an option yet.
+Set `web_search_provider` (e.g. `brave`) and add its key as a `builtin_api_keys` entry (`BRAVE_SEARCH_API_KEY`).
+Searching is allowed; **fetching a URL always asks**, so read the full URL before approving.
 
-## Safety model
-An agent with access can destroy things: delete files, break your config, or leak data to a model provider. So the
-approach here is **ask first**: nothing is written or run without your confirmation, and the safety features below
-reduce the damage, they do not make it impossible. Keep real Home Assistant backups.
-
-Pi itself has no approval prompts, so this add-on adds the `pi-permission-system` extension with a generated policy
-(`/data/pi-agent/pi-permissions.jsonc`, rewritten on every start):
-
-- **Reads** inside the mapped folders are free. **Writes, edits and shell commands ask first.** If the terminal has no UI to ask, they are blocked.
-- **Protected files** (`restrict_sensitive_files`, on by default): `secrets.yaml`, `.storage/`, `.cloud/`, `.git/`, `ssl/`, `/backup`, key files, `/data/options.json`.
-  The agent cannot read them with the read tool and cannot write them at all.
-- **Self-protection:** the policy, `settings.json`, `models.json`, extensions, `.pi/` folders and `*override*` files in `/config` are not writable by the agent.
-  The extension's own on/off switch is rewritten at start, and the add-on refuses to start if the extension is missing.
-- **Config edits** should go through `ha-safe-write` (backup, HA Core config check, rollback), then `ha-reload`. Undo with `ha-restore`.
-  These are per-file copies in `/data/backups`, **not Home Assistant backups**. Make a real HA backup before large changes.
-- **No `full_access`, Docker, UART or manager role.** The terminal is only reachable through HA ingress (nginx allows the Supervisor only).
-
-Limits you should know about. This is a speed bump, not a sandbox:
-- Bash rules match the whole command string, so a deny on `secrets.yaml` is easy to get around with a shell trick.
-- `grep` and `find` on a **directory** are not blocked by path rules, so they can still read protected files inside it.
-- The policy does not resolve symlinks: a link to a protected file can be read.
-- `/addon_configs` (other add-ons' configs) is mounted read-write. Reads and writes both ask first, and anything the agent reads is sent to your model provider.
-- Back up before letting it loose on `configuration.yaml`.
-
-## Copying text from the terminal
-
-tmux mouse mode (wheel scrolling) keeps a drag-selection inside tmux, so it cannot reach your clipboard (ttyd has no clipboard bridge). Either hold **Shift** (Option on macOS) while dragging to let the browser select, or press **Ctrl+b m** to switch mouse mode off and on.
-
-## Local testing
-```bash
-./dev/run-local.sh --mock-ha     # builds the image, runs it on http://localhost:7681, fake HA API included
-./dev/run-local.sh --detach      # background; --stop to stop
-```
-State is kept in `~/pi-test` (override with `PI_TEST_DIR`); put your API keys in `~/pi-test/data/options.json`.
-Without real Home Assistant, hass-mcp is unavailable and `--mock-ha` only fakes the config check and reload calls.
+## Tips
+- Copying text: hold **Shift** (Option on macOS) while dragging, or press **Ctrl+b m** to toggle tmux mouse mode.
+- Try it locally: `./dev/run-local.sh --mock-ha` (Docker; state in `~/pi-test`).
 
 ## Credits
 Inspired by [Robson Felix's Claude Code add-on](https://github.com/robsonfelix/robsonfelix-hass-addons/tree/main/claudecode) (MIT),
-which I use myself; this is the same idea for Pi and open models. A few pieces are adapted from it (see `LICENSE`).
-I also looked at [magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense), and its
-validate-and-back-up approach to config writes shaped this one. Ideas only, no code was copied.
-Uses [pi-permission-system](https://github.com/MasuRii/pi-permission-system) (MIT) for the permission policy.
+which I use myself; a few pieces are adapted from it (see `LICENSE`). I also looked at
+[magnusoverli's OpenCode add-on](https://github.com/magnusoverli/opencode) (Unlicense); its approach to validated config writes
+shaped this one (ideas only). Uses [pi-permission-system](https://github.com/MasuRii/pi-permission-system) (MIT).
