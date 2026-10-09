@@ -1,0 +1,22 @@
+# Install once with: uv run --group dev pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (type check)
+        entry: uv run --locked --group dev ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: uv run --locked --group dev pytest -q
+        language: system
+        types: [python]
+        pass_filenames: false

@@ -1,0 +1,31 @@
+[project]
+name = "ha-addons"
+version = "0.0.0"
+description = "Home Assistant add-ons (tooling config only; nothing here is published)"
+requires-python = ">=3.12"  # Alpine 3.23 ships Python 3.12
+
+[dependency-groups]
+dev = ["pre-commit", "pytest", "ruff", "ty"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["pi-agent/dev"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+    "E701",  # one-line `def info(...): log(...)` helpers are intentional
+]
+
+[tool.ruff.lint.per-file-ignores]
+"pi-agent/tests/*" = ["E501"]
+
+[tool.ty.src]
+include = ["pi-agent/rootfs/usr/local/lib", "pi-agent/tests"]
+
+[tool.ty.environment]
+extra-paths = ["pi-agent/rootfs/usr/local/lib/pi-agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["pi-agent/tests"]

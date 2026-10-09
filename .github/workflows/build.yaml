@@ -4,10 +4,10 @@ name: Build add-ons
 # Adapted from home-assistant/apps-example, without tj-actions/changed-files or @master helpers.
 on:
   pull_request:
-    paths: ["pi-agent/**", ".github/workflows/build.yaml"]
+    paths: ["pi-agent/**", "pyproject.toml", "uv.lock", ".github/workflows/build.yaml"]
   push:
     branches: [main]
-    paths: ["pi-agent/**", ".github/workflows/build.yaml"]
+    paths: ["pi-agent/**", "pyproject.toml", "uv.lock", ".github/workflows/build.yaml"]
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,25 @@ env:
   APP: pi-agent   # add-on directory; the image is ghcr.io/<owner>/<APP>
 
 jobs:
+  test:
+    name: Lint, type check, test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - run: uv run --locked --group dev ruff check .
+      - run: uv run --locked --group dev ruff format --check .
+      - run: uv run --locked --group dev ty check
+      - run: uv run --locked --group dev pytest -q
+
   prepare:
+    needs: test
     name: Prepare
     runs-on: ubuntu-latest
     outputs:
