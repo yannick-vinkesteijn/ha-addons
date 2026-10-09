@@ -5,7 +5,7 @@ description = "Home Assistant add-ons (tooling config only; nothing here is publ
 requires-python = ">=3.12"  # Alpine 3.23 ships Python 3.12
 
 [dependency-groups]
-dev = ["pytest", "ruff", "ty"]
+dev = ["pre-commit", "pytest", "ruff", "ty"]
 
 [tool.ruff]
 line-length = 120

@@ -1,4 +1,4 @@
-# Install once with: uvx pre-commit install
+# Install once with: uv run --group dev pre-commit install
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.10
@@ -10,13 +10,13 @@ repos:
     hooks:
       - id: ty
         name: ty (type check)
-        entry: uvx ty check
+        entry: uv run --locked --group dev ty check
         language: system
         types: [python]
         pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run --group dev pytest -q
+        entry: uv run --locked --group dev pytest -q
         language: system
         types: [python]
         pass_filenames: false
