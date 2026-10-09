@@ -1,6 +1,7 @@
 name: Pi Agent
 description: Pi coding agent in Home Assistant, using any token-based model (Mistral, AKI.IO, OpenAI-compatible, ...)
-version: "0.1.1"
+version: "0.1.2"
+image: ghcr.io/yannick-vinkesteijn/pi-agent
 slug: pi_agent
 url: https://github.com/yannick-vinkesteijn/ha-addons
 arch:

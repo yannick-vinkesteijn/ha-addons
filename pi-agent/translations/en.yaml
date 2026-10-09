@@ -7,7 +7,7 @@ configuration:
     description: "API key for any provider Pi knows (OpenAI, Groq, OpenRouter...). env_var is e.g. MISTRAL_API_KEY or OPENAI_API_KEY."
   custom_providers:
     name: Custom OpenAI-compatible providers
-    description: "Any token-based endpoint: name (lowercase), base_url (ending in /v1), api_key, and optionally model IDs. If models is empty they are fetched from <base_url>/models."
+    description: "Any token-based endpoint: name (lowercase), base_url (the OpenAI-compatible root, e.g. https://aki.io/openai/v1), api_key, and optionally model IDs. If models is empty they are fetched from <base_url>/models."
   default_model:
     name: Default model
     description: Optional model ID, e.g. one listed by `pi --list-models`. Empty lets Pi choose.

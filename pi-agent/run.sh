@@ -27,5 +27,6 @@ exec ttyd --interface 127.0.0.1 --port 7682 --writable --ping-interval 30 --max-
   -t fontSize="$PI_UI_FONT_SIZE" \
   -t fontFamily=Monaco,Consolas,monospace \
   -t scrollback=20000 \
+  -t macOptionClickForcesSelection=true \
   -t "theme=$COLORS" \
   "${SHELL_CMD[@]}"
