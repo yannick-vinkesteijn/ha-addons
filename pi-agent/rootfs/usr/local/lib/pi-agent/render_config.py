@@ -133,9 +133,12 @@ def write_json(path: str | Path, data: Json, mode: int | None = None) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    # Create the file with its final mode so secrets are never readable, even briefly.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode if mode is not None else 0o666)
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(data, indent=2) + "\n")
     if mode is not None:
-        os.chmod(tmp, mode)
+        os.chmod(tmp, mode)  # the umask may have narrowed it further; make it exact
     os.replace(tmp, path)
 
 
@@ -256,13 +259,23 @@ def seed_agent_dir(agent_dir: Path) -> None:
 # --- providers ---------------------------------------------------------------------------------
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Never follow redirects: urllib would forward the Authorization header to the new host."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def discover_models(base_url: str, api_key: str) -> Discovery:
     """Ask <base_url>/models. Returns (ids, code, start of the response body)."""
     url = base_url.rstrip("/") + "/models"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {api_key}"})
     code, body = "000", ""  # "000" = no HTTP response at all
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with _OPENER.open(req, timeout=15) as resp:
             code, body = str(resp.status), resp.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         code, body = str(e.code), e.read().decode("utf-8", "replace")
@@ -417,14 +430,17 @@ def update_settings(path: str | Path, provider: str, model: str) -> None:
         else:
             settings.pop(key, None)
     # pi-mcp-adapter replaces Pi's built-in MCP; switch the built-in off up front so Pi does not warn.
-    settings["extensions"] = sorted(set(settings.get("extensions") or []) | {"-builtin:mcp"})
+    extensions = {e for e in settings.get("extensions") or [] if isinstance(e, str)}
+    settings["extensions"] = sorted(extensions | {"-builtin:mcp"})
     # The bundled extensions must always be installed at the pinned versions, even for an old settings.json.
     # Packages: keep the user's own, but replace any stale pin of ours with the version in the image.
     seed = read_json(SEED_DIR / "settings.json", {})
     if seed.get("packages"):
         pinned_prefixes = tuple(f"npm:{p}" for p in PINNED_PACKAGES)
-        kept = [p for p in settings.get("packages") or [] if not p.startswith(pinned_prefixes)]
-        settings["packages"] = sorted(set(kept) | set(seed["packages"]))
+        kept = [p for p in settings.get("packages") or [] if not (isinstance(p, str) and p.startswith(pinned_prefixes))]
+        # Object-form entries ({"source": ...}) are kept as written; only plain strings can be de-duplicated.
+        strings = sorted({p for p in kept if isinstance(p, str)} | set(seed["packages"]))
+        settings["packages"] = strings + [p for p in kept if not isinstance(p, str)]
     write_json(path, settings)
 
 
@@ -529,6 +545,8 @@ def main() -> None:
 
     # models.json: regenerated every start; the user can layer /config/models.override.json on top.
     models = merge_override(build_models(opts), CONFIG_DIR / "models.override.json", "models.json")
+    if not isinstance(models.get("providers"), dict):
+        raise Fatal('models.override.json must keep "providers" an object')
     write_json(agent_dir / "models.json", models)
 
     if provider and provider not in models["providers"] and not builtin:

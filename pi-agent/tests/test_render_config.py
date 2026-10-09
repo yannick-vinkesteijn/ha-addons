@@ -225,19 +225,57 @@ def test_discover_models_parses_and_survives_garbage(monkeypatch):
         def __exit__(self, *a):
             return False
 
-    monkeypatch.setattr(
-        rc.urllib.request, "urlopen", lambda *a, **k: Resp(b'{"data":[{"id":"a"},{"id":null},{}, "x"]}')
-    )
+    monkeypatch.setattr(rc._OPENER, "open", lambda *a, **k: Resp(b'{"data":[{"id":"a"},{"id":null},{}, "x"]}'))
     assert rc.discover_models("https://h/v1", "k")[0] == ["a"]
-    monkeypatch.setattr(rc.urllib.request, "urlopen", lambda *a, **k: Resp(b"<html>"))
+    monkeypatch.setattr(rc._OPENER, "open", lambda *a, **k: Resp(b"<html>"))
     assert rc.discover_models("https://h/v1", "k")[0] == []
 
     def boom(*a, **k):
         raise OSError("refused")
 
-    monkeypatch.setattr(rc.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(rc._OPENER, "open", boom)
     ids, code, body = rc.discover_models("https://h/v1", "k")
     assert (ids, code) == ([], "000") and "refused" in body
+
+
+def test_discover_models_does_not_leak_the_key_on_redirect():
+    """Regression: urllib forwards Authorization across redirects; the old curl call never followed them."""
+    import http.server
+    import threading
+
+    seen: list[str | None] = []
+
+    class Target(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.headers.get("Authorization"))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"data":[{"id":"stolen"}]}')
+
+        def log_message(self, format, *args): ...
+
+    target = http.server.HTTPServer(("127.0.0.1", 0), Target)
+
+    class Redirector(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{target.server_port}/v1/models")
+            self.end_headers()
+
+        def log_message(self, format, *args): ...
+
+    redirector = http.server.HTTPServer(("127.0.0.1", 0), Redirector)
+    servers = (target, redirector)
+    for srv in servers:
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        ids, code, _ = rc.discover_models(f"http://127.0.0.1:{redirector.server_port}/v1", "SECRETKEY")
+    finally:
+        for srv in servers:
+            srv.shutdown()
+            srv.server_close()
+    assert ids == [] and code == "302"
+    assert seen == []  # the redirect target never received a request
 
 
 # --- policy ------------------------------------------------------------------------------------
@@ -309,6 +347,16 @@ def test_update_settings_keeps_user_keys_and_replaces_stale_pins(env):
     assert "npm:pi-permission-system@0.8.0" in data["packages"]
     assert "npm:pi-permission-system@0.1.0" not in data["packages"]
     assert "npm:user-pkg@1.0.0" in data["packages"]
+
+
+def test_update_settings_tolerates_non_string_entries(env):
+    s = env / "settings.json"
+    write(s, {"extensions": ["x", {"odd": 1}], "packages": [{"source": "npm:mine"}, "npm:pi-mcp-adapter@1.0.0"]})
+    rc.update_settings(s, "", "")
+    data = json.loads(s.read_text())
+    assert data["extensions"] == ["-builtin:mcp", "x"]
+    assert {"source": "npm:mine"} in data["packages"]
+    assert "npm:pi-mcp-adapter@5.1.0" in data["packages"] and "npm:pi-mcp-adapter@1.0.0" not in data["packages"]
 
 
 def test_update_settings_recovers_from_corrupt_file(env):
@@ -429,6 +477,21 @@ def test_main_web_provider_export(env, capsys):
     assert exports["WEB_SEARCH_PROVIDER"] == "tavily"
     exports, _ = run_main(env, {}, capsys)
     assert "WEB_SEARCH_PROVIDER" not in exports
+
+
+def test_main_override_breaking_providers_is_fatal(env, capsys):
+    write(env / "config/models.override.json", {"providers": None})
+    with pytest.raises(rc.Fatal):
+        run_main(env, {}, capsys)
+
+
+def test_write_json_secret_file_is_never_world_readable(tmp_path):
+    old = os.umask(0)  # worst case: nothing masked
+    try:
+        rc.write_json(tmp_path / "s.json", {"t": 1}, mode=0o600)
+    finally:
+        os.umask(old)
+    assert (tmp_path / "s.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_main_unreadable_options_is_fatal(env):

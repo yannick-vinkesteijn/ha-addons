@@ -7,7 +7,7 @@
 - Install `fd` in the image (Pi no longer downloads it into /data at runtime).
 - tmux: enable extended keys with the csi-u format (modified Enter, no more warning).
 - Pi's built-in MCP is switched off up front, so the first start has no "extension conflict" warning.
-- The terminal opens with a short setup status: what is configured, and exactly what to add if no provider or model is set.
+- The terminal opens with a short setup status: what is configured, and what to add if no provider is set or a provider has no models.
 - Model discovery now logs the HTTP status and response when it fails; a provider with no models is reported as an error with the fix.
 
 ## 0.1.0
